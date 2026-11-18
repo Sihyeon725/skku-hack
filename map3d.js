@@ -265,6 +265,18 @@ for (const k in ACC) { const m = ACC[k].mesh(new THREE.MeshLambertMaterial({ map
 { const m = roofAcc.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(m); pickMeshes.push(m); }
 { const m = detAcc.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(m); pickMeshes.push(m); }
 const terrain = buildTerrain();
+/* 보행로·계단 오버레이 (OSM) — 지형 높이에 맞춰 drape */
+(function drawPaths3D(){ const P = window.PATHS; if(!P||!P.length) return; const grp=new THREE.Group(); grp.name='paths3d';
+  P.forEach(p=>{ if(!p.c||p.c.length<2) return;
+    const step=p.k==='steps', road=p.k==='road';
+    const pts=p.c.map(([lat,lng])=>{ const [x,z]=llXZ([lat,lng]); return new THREE.Vector3(x, gH(x,z)+(step?0.35:0.2), z); });
+    const curve=new THREE.CatmullRomCurve3(pts);
+    const seg=Math.min(Math.max(pts.length*3,8),400), rad=step?0.8:(road?0.95:0.6);
+    const geo=new THREE.TubeGeometry(curve, seg, rad, 5, false);
+    const col=step?0xC4983A:(road?0xEDE3C9:0xD8C9A6);
+    grp.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color:col}))); });
+  scene.add(grp);
+})();
 
 /* ---------- 나무 ---------- */
 {
