@@ -303,8 +303,8 @@ function setSelected(id) {
 
 /* ---------- 카메라·조작 ---------- */
 const controls = new MapControls(camera, canvas);
-Object.assign(controls, { enableDamping: true, dampingFactor: .09, screenSpacePanning: false, maxPolarAngle: 1.3, minPolarAngle: .12,
-  minDistance: 45, maxDistance: 2600, zoomSpeed: 1.1, rotateSpeed: .55, panSpeed: 1, zoomToCursor: true });
+Object.assign(controls, { enableDamping: true, dampingFactor: .14, screenSpacePanning: false, maxPolarAngle: 1.4, minPolarAngle: .08,
+  minDistance: 45, maxDistance: 2600, zoomSpeed: 1.0, rotateSpeed: .85, panSpeed: .8, zoomToCursor: true });
 const HOME = (() => { const [x, z] = llXZ([37.58795, 126.99285]); return { x, z, r: 700, phi: 1.06, th: .42 }; })();
 let KX = .3;   // 화면 가로로 보이는 폭(m) = 2 × 거리 × KX
 const distFor = w => (w / 2) / KX;
