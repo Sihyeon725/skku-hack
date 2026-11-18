@@ -537,7 +537,8 @@ const ICON = {
   send:'M4 12l16-8-6 16-2.5-6.5z',
   chev:'M9 6l6 6-6 6',
 };
-const iconSVG=(k,s=18,stroke='currentColor',w=1.9)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]||ICON.etc}"/></svg>`;
+const CAT_COLOR={store:'#2E9E5B',cafe:'#9A6B4F',food:'#E0663D',vending:'#1C9C9C',water:'#3B82C4',print:'#7C6BD0',study:'#C2902A',atm:'#4E73B0',bus:'#D1495B',etc:'#6E7A70'};
+const iconSVG=(k,s=18,stroke='currentColor',w=1.9)=>`<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="${stroke==='currentColor'&&CAT_COLOR[k]?CAT_COLOR[k]:stroke}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON[k]||ICON.etc}"/></svg>`;
 const $=(s,r=document)=>r.querySelector(s);
 const NS='http://www.w3.org/2000/svg';
 function S(tag,attrs={},parent){ const n=document.createElementNS(NS,tag); for(const k in attrs){ if(attrs[k]!=null) n.setAttribute(k,attrs[k]); } if(parent) parent.appendChild(n); return n; }
@@ -668,7 +669,7 @@ function drawMap(){
   // 출입구 점
   L.doors=S('g',{},world);
   Object.entries(DOORS).forEach(([bid,ds])=>ds.forEach(d=>{ if(!d.side) return; const [x,y]=doorXY(BY[bid],d);
-    const g=S('g',{class:'doorpt','data-bid':bid},L.doors);
+    const g=S('g',{class:'doorpt','data-bid':bid,'data-door':d._b+':'+d._i},L.doors);
     S('circle',{cx:x,cy:y,r:6.5,fill:'#EFB000',stroke:'#1C2A21','stroke-width':1.5},g);
     S('rect',{x:x-2,y:y-3,width:4,height:6,rx:.8,fill:'#1C2A21'},g); }));
   // 문(정문·후문)
@@ -743,6 +744,7 @@ function onMapTap(target,e){
   if(state.coord){ const r=mapSvg.getBoundingClientRect(),X=(e.clientX-r.left-V.tx)/V.s,Y=(e.clientY-r.top-V.ty)/V.s,ll=toLL(X,Y);
     L.coord.textContent=''; S('circle',{cx:X,cy:Y,r:6,fill:'none',stroke:'#2346D6','stroke-width':3},L.coord);
     $('#coordtxt').textContent=`[${ll[0]}, ${ll[1]}]`; $('#coordchip').classList.add('on'); return; }
+  const dr=target&&target.closest&&target.closest('[data-door]'); if(dr){ const dp=dr.dataset.door.split(':'), dd=DOORS[dp[0]][+dp[1]]; toast(BY[dp[0]].name+' '+dd.name+' · 닫힘 '+(dd.close||'확인 필요')); return; }
   const t=target&&target.closest&&target.closest('[data-bid],[data-stop],[data-fac]');
   if(!t){ closeCallout(); dismissToHome(); return; }
   if(t.dataset.bid) showBuilding(t.dataset.bid); else if(t.dataset.stop) showStop(t.dataset.stop); else if(t.dataset.fac) showItem(t.dataset.fac);
@@ -751,7 +753,12 @@ function onMapTap(target,e){
 /* ---------------- 화면(뷰) ---------------- */
 const body=$('#sheetBody'), sheet=$('#sheet'), co=$('#callout');
 function setSheet(size){ sheet.dataset.size=size; requestAnimationFrame(syncVars); }
-$('#grip').onclick=()=>setSheet(sheet.dataset.size==='full'?'peek':'full');
+(function(){ const grip=$('#grip'); let dg=null;
+  grip.addEventListener('pointerdown',e=>{ dg={y:e.clientY,h:sheet.getBoundingClientRect().height,moved:false}; try{grip.setPointerCapture(e.pointerId);}catch(_){} sheet.style.transition='none'; e.preventDefault(); });
+  grip.addEventListener('pointermove',e=>{ if(!dg) return; const dy=dg.y-e.clientY; if(Math.abs(dy)>4) dg.moved=true; const h=Math.max(0,Math.min(innerHeight*0.86,dg.h+dy)); dg.last=h; sheet.style.maxHeight=h+'px'; });
+  function endDrag(){ if(!dg) return; const d=dg; dg=null; sheet.style.transition=''; sheet.style.maxHeight=''; if(!d.moved){ setSheet(sheet.dataset.size==='full'?'peek':'full'); return; } const h=d.last||d.h, vh=innerHeight; if(h<vh*0.10) dismissToHome(); else if(h<vh*0.30) setSheet('mini'); else if(h<vh*0.63) setSheet('peek'); else setSheet('full'); }
+  grip.addEventListener('pointerup',endDrag); grip.addEventListener('pointercancel',endDrag);
+})();
 function syncVars(){ const app=$('#app'),r=app.getBoundingClientRect();
   app.style.setProperty('--sheet-h',isDesktop()?'0px':(r.bottom-sheet.getBoundingClientRect().top)+'px');
   if(window.M3D&&M3D.on) M3D.resize();
@@ -806,7 +813,7 @@ function viewBuilding(id){
    <div class="bmeta">${b.floors?`<span class="badge cat">${flS(b.floors[0])} ~ ${flS(b.floors[b.floors.length-1])}</span>${b.floorsSrc!=='official'?srcBadge(b.floorsSrc):''}`:''}${b.elev?`<span class="badge cat">${iconSVG('elev',12)} ${elevText(b)}</span>`:''}</div>
    ${b.note?`<div class="note">${esc(b.note)} ${srcBadge(b.noteSrc)}</div>`:''}`;
   if(b.floors){
-    h+=`<h3 class="sub" style="margin-top:12px">층 · 누르면 그 층 시설이 나와요</h3><ul class="floors">`+[...b.floors].reverse().map(f=>{
+    h+=`<h3 class="sub" style="margin-top:12px">층 · 누르면 그 층 시설이 나와요</h3><ul class="floors">`+[...b.floors].reverse().filter(f=>{ const _i=its.filter(i=>i.f===f).length,_d=ds.filter(d=>d.f===f).length,_l=linksAt(id,f).length; return _i||_d||_l; }).map(f=>{
       const ii=its.filter(i=>i.f===f), dd=ds.filter(d=>d.f===f), ll=linksAt(id,f), empty=!ii.length&&!dd.length&&!ll.length;
       const cats=[...new Set(ii.map(i=>i.cat))];
       const tags=[dd.length?`<span class="tag door">${iconSVG('door',12)} 출입구</span>`:'', ll.length?`<span class="tag link">${iconSVG('link',12)} 옆 건물로 연결</span>`:'',
