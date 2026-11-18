@@ -265,16 +265,25 @@ for (const k in ACC) { const m = ACC[k].mesh(new THREE.MeshLambertMaterial({ map
 { const m = roofAcc.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(m); pickMeshes.push(m); }
 { const m = detAcc.mesh(new THREE.MeshLambertMaterial({ vertexColors: true })); scene.add(m); pickMeshes.push(m); }
 const terrain = buildTerrain();
-/* 보행로·계단 오버레이 (OSM) — 지형 높이에 맞춰 drape */
+/* 보행로·계단 오버레이 (OSM) — 지형에 drape, 계단은 층계 */
 (function drawPaths3D(){ const P = window.PATHS; if(!P||!P.length) return; const grp=new THREE.Group(); grp.name='paths3d';
+  const roadMat=new THREE.MeshLambertMaterial({color:0xF4EDD7, side:THREE.DoubleSide}), pathMat=new THREE.MeshLambertMaterial({color:0xE6D8B4, side:THREE.DoubleSide}), stepMat=new THREE.MeshLambertMaterial({color:0xCF9324});
+  const ribbon=(pts,hw,yoff)=>{ const pos=[],idx=[];
+    for(let i=0;i<pts.length;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(pts.length-1,i+1)]; let dx=b.x-a.x, dz=b.z-a.z; const L=Math.hypot(dx,dz)||1; dx/=L; dz/=L; const px=-dz, pz=dx, p=pts[i]; pos.push(p.x+px*hw,p.y+yoff,p.z+pz*hw, p.x-px*hw,p.y+yoff,p.z-pz*hw); }
+    for(let i=0;i<pts.length-1;i++){ const a=i*2; idx.push(a,a+1,a+2,a+2,a+1,a+3); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); g.computeVertexNormals(); return g; };
   P.forEach(p=>{ if(!p.c||p.c.length<2) return;
-    const step=p.k==='steps', road=p.k==='road';
-    const pts=p.c.map(([lat,lng])=>{ const [x,z]=llXZ([lat,lng]); return new THREE.Vector3(x, gH(x,z)+(step?0.35:0.2), z); });
-    const curve=new THREE.CatmullRomCurve3(pts);
-    const seg=Math.min(Math.max(pts.length*3,8),400), rad=step?0.8:(road?0.95:0.6);
-    const geo=new THREE.TubeGeometry(curve, seg, rad, 5, false);
-    const col=step?0xC4983A:(road?0xEDE3C9:0xD8C9A6);
-    grp.add(new THREE.Mesh(geo, new THREE.MeshLambertMaterial({color:col}))); });
+    const pts=p.c.map(([lat,lng])=>{ const [x,z]=llXZ([lat,lng]); return new THREE.Vector3(x, gH(x,z), z); });
+    if(p.k==='steps'){
+      const curve=new THREE.CatmullRomCurve3(pts), len=curve.getLength(), n=Math.max(2,Math.round(len/1.4));
+      for(let i=0;i<=n;i++){ const t=i/n, pos=curve.getPointAt(t), tan=curve.getTangentAt(t);
+        const tread=new THREE.Mesh(new THREE.BoxGeometry(3.4,0.7,1.5), stepMat);
+        tread.position.set(pos.x,pos.y+0.35,pos.z); tread.rotation.y=Math.atan2(tan.x,tan.z); grp.add(tread); }
+    } else {
+      const hw=p.k==='road'?2.2:1.4;
+      grp.add(new THREE.Mesh(ribbon(pts,hw,0.25), p.k==='road'?roadMat:pathMat));
+    }
+  });
   scene.add(grp);
 })();
 
@@ -315,8 +324,8 @@ function setSelected(id) {
 
 /* ---------- 카메라·조작 ---------- */
 const controls = new MapControls(camera, canvas);
-Object.assign(controls, { enableDamping: true, dampingFactor: .14, screenSpacePanning: false, maxPolarAngle: 1.4, minPolarAngle: .08,
-  minDistance: 45, maxDistance: 2600, zoomSpeed: 1.0, rotateSpeed: .85, panSpeed: .8, zoomToCursor: true });
+Object.assign(controls, { enableDamping: true, dampingFactor: .1, screenSpacePanning: false, maxPolarAngle: 1.33, minPolarAngle: .12,
+  minDistance: 45, maxDistance: 2600, zoomSpeed: 1.0, rotateSpeed: .9, panSpeed: .85, zoomToCursor: true });
 const HOME = (() => { const [x, z] = llXZ([37.58795, 126.99285]); return { x, z, r: 700, phi: 1.06, th: .42 }; })();
 let KX = .3;   // 화면 가로로 보이는 폭(m) = 2 × 거리 × KX
 const distFor = w => (w / 2) / KX;
@@ -338,6 +347,7 @@ function stepFly(now) {
   if (k >= 1) fly = null; return true;
 }
 canvas.addEventListener('pointerdown', () => { fly = null; }, { capture: true });
+api.resetView = () => { const off = camera.position.clone().sub(controls.target); const s0 = new THREE.Spherical().setFromVector3(off); const s1 = new THREE.Spherical(HOME.r, HOME.phi, HOME.th); flyTo(HOME.x, HOME.z, HOME.r); if (fly) fly.ang = { s0, s1 }; };
 function keepInBounds() {
   const t = controls.target, m = 40; const cx = Math.min(Math.max(t.x, X0 + m), X1 - m), cz = Math.min(Math.max(t.z, Z0 + m), Z1 - m);
   const dx = cx - t.x, dz = cz - t.z; const gy = gH(cx, cz), dy = (gy - t.y) * .25;
