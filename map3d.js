@@ -413,7 +413,7 @@ canvas.addEventListener('pointerup', e => {
     coordMark.p.copy(h.point); coordMark.hide = false; $q('#coordtxt').textContent = `[${ll[0]}, ${ll[1]}]`; $q('#coordchip').classList.add('on'); dirty = true; return; }
   const h = hits.find(x => x.object !== terrain && x.object.userData.own);
   if (h) { const B = BINFO[h.object.userData.own[h.faceIndex]]; if (B && B.id) { showBuilding(B.id); return; } }
-  closeCallout();
+  closeCallout(); if (window.dismissToHome) window.dismissToHome();
 });
 
 /* ---------- 루프 ---------- */
